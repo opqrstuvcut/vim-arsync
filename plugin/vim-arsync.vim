@@ -4,7 +4,7 @@
 " Date: 08/2019
 " License: MIT
 
-function! LoadConf()
+function! LoadConf() abort
     let l:conf_dict = {}
     let l:file_exists = filereadable('.vim-arsync')
 
@@ -14,9 +14,7 @@ function! LoadConf()
             let l:var_name = substitute(i[0:stridx(i, ' ')], '^\s*\(.\{-}\)\s*$', '\1', '')
             if l:var_name == 'ignore_path'
                 let l:var_value = eval(substitute(i[stridx(i, ' '):], '^\s*\(.\{-}\)\s*$', '\1', ''))
-                " echo substitute(i[stridx(i, ' '):], '^\s*\(.\{-}\)\s*$', '\1', '')
             elseif l:var_name == 'remote_passwd'
-                " Do not escape characters in passwords.
                 let l:var_value = substitute(i[stridx(i, ' '):], '^\s*\(.\{-}\)\s*$', '\1', '')
             else
                 let l:var_value = escape(substitute(i[stridx(i, ' '):], '^\s*\(.\{-}\)\s*$', '\1', ''), '%#!')
@@ -42,10 +40,8 @@ function! LoadConf()
     return l:conf_dict
 endfunction
 
-function! JobHandler(job_id, data, event_type)
-    " redraw | echom a:job_id . ' ' . a:event_type
+function! JobHandler(job_id, data, event_type) abort
     if a:event_type == 'stdout' || a:event_type == 'stderr'
-        " redraw | echom string(a:data)
         if has_key(getqflist({'id' : g:qfid}), 'id')
             call setqflist([], 'a', {'id' : g:qfid, 'lines' : a:data})
         endif
@@ -56,18 +52,19 @@ function! JobHandler(job_id, data, event_type)
         if a:data == 0
             echo "vim-arsync success."
         endif
-        " echom string(a:data)
     endif
 endfunction
 
-function! ShowConf()
+function! ShowConf() abort
     let l:conf_dict = LoadConf()
     echo l:conf_dict
     echom string(getqflist())
 endfunction
 
-function! ARsync(direction)
+function! ARsync(direction, ...) abort
     let l:conf_dict = LoadConf()
+    let l:remote_file = (a:0 > 0 ? a:1 : '')
+
     if has_key(l:conf_dict, 'remote_host')
         let l:user_passwd = ''
         if has_key(l:conf_dict, 'remote_user')
@@ -82,21 +79,66 @@ function! ARsync(direction)
         endif
         if l:conf_dict['remote_or_local'] == 'remote'
             if a:direction == 'down'
-                let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p '.l:conf_dict['remote_port'], l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/', l:conf_dict['local_path'] . '/']
-            elseif  a:direction == 'up'
-                let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p '.l:conf_dict['remote_port'], l:conf_dict['local_path'] . '/', l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/']
+                if l:remote_file != ''
+                    let l:source = l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/' . l:remote_file
+                    let l:destination = l:conf_dict['local_path'] . '/' . l:remote_file
+                else
+                    let l:source = l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/'
+                    let l:destination = l:conf_dict['local_path'] . '/'
+                endif
+                let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p ' . l:conf_dict['remote_port'], l:source, l:destination ]
+            elseif a:direction == 'up'
+                if l:remote_file != ''
+                    let l:source = l:conf_dict['local_path'] . '/' . l:remote_file
+                    let l:destination = l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/' . l:remote_file
+                else
+                    let l:source = l:conf_dict['local_path'] . '/'
+                    let l:destination = l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/'
+                endif
+                let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p ' . l:conf_dict['remote_port'], l:source, l:destination ]
             else " updelete
-                let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p '.l:conf_dict['remote_port'], l:conf_dict['local_path'] . '/', l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/', '--delete']
+                if l:remote_file != ''
+                    let l:source = l:conf_dict['local_path'] . '/' . l:remote_file
+                    let l:destination = l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/' . l:remote_file
+                    let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p ' . l:conf_dict['remote_port'], l:source, l:destination ]
+                else
+                    let l:source = l:conf_dict['local_path'] . '/'
+                    let l:destination = l:user_passwd . l:conf_dict['remote_host'] . ':' . l:conf_dict['remote_path'] . '/'
+                    let l:cmd = [ 'rsync', l:conf_dict['remote_options'], 'ssh -p ' . l:conf_dict['remote_port'], l:source, l:destination, '--delete' ]
+                endif
             endif
         elseif l:conf_dict['remote_or_local'] == 'local'
             if a:direction == 'down'
-                let l:cmd = [ 'rsync', l:conf_dict['local_options'],  l:conf_dict['remote_path'] , l:conf_dict['local_path']]
-            elseif  a:direction == 'up'
-                let l:cmd = [ 'rsync', l:conf_dict['local_options'],  l:conf_dict['local_path'] , l:conf_dict['remote_path']]
+                if l:remote_file != ''
+                    let l:source = l:conf_dict['remote_path'] . '/' . l:remote_file
+                    let l:destination = l:conf_dict['local_path'] . '/' . l:remote_file
+                else
+                    let l:source = l:conf_dict['remote_path']
+                    let l:destination = l:conf_dict['local_path']
+                endif
+                let l:cmd = [ 'rsync', l:conf_dict['local_options'], l:source, l:destination ]
+            elseif a:direction == 'up'
+                if l:remote_file != ''
+                    let l:source = l:conf_dict['local_path'] . '/' . l:remote_file
+                    let l:destination = l:conf_dict['remote_path'] . '/' . l:remote_file
+                else
+                    let l:source = l:conf_dict['local_path']
+                    let l:destination = l:conf_dict['remote_path']
+                endif
+                let l:cmd = [ 'rsync', l:conf_dict['local_options'], l:source, l:destination ]
             else " updelete
-                let l:cmd = [ 'rsync', l:conf_dict['local_options'],  l:conf_dict['local_path'] , l:conf_dict['remote_path'] . '/', '--delete']
+                if l:remote_file != ''
+                    let l:source = l:conf_dict['local_path'] . '/' . l:remote_file
+                    let l:destination = l:conf_dict['remote_path'] . '/' . l:remote_file
+                    let l:cmd = [ 'rsync', l:conf_dict['local_options'], l:source, l:destination ]
+                else
+                    let l:source = l:conf_dict['local_path']
+                    let l:destination = l:conf_dict['remote_path'] . '/'
+                    let l:cmd = [ 'rsync', l:conf_dict['local_options'], l:source, l:destination, '--delete' ]
+                endif
             endif
         endif
+
         if has_key(l:conf_dict, 'ignore_path')
             for file in l:conf_dict['ignore_path']
                 let l:cmd = l:cmd + ['--exclude', file]
@@ -111,34 +153,39 @@ function! ARsync(direction)
             let l:cmd = ['sshpass', '-p', sshpass_passwd] + l:cmd
         endif
 
-        " create qf for job
         call setqflist([], ' ', {'title' : 'vim-arsync'})
         let g:qfid = getqflist({'id' : 0}).id
-        " redraw | echom join(cmd)
-        let l:job_id = async#job#start(cmd, {
+        let l:job_id = async#job#start(l:cmd, {
                     \ 'on_stdout': function('JobHandler'),
                     \ 'on_stderr': function('JobHandler'),
                     \ 'on_exit': function('JobHandler'),
                     \ })
-        " TODO: handle errors
     else
         echoerr 'Could not locate a .vim-arsync configuration file. Aborting...'
     endif
 endfunction
 
-function! AutoSync()
+function! AutoSync() abort
     let l:conf_dict = LoadConf()
-    if has_key(l:conf_dict, 'auto_sync_up')
-        if l:conf_dict['auto_sync_up'] == 1
+    augroup vimarsync_sync
+        autocmd!
+        if has_key(l:conf_dict, 'auto_sync_up') && l:conf_dict['auto_sync_up'] == 1
             if has_key(l:conf_dict, 'sleep_before_sync')
-                let g:sleep_time = l:conf_dict['sleep_before_sync']*1000
+                let g:sleep_time = l:conf_dict['sleep_before_sync'] * 1000
                 autocmd BufWritePost,FileWritePost * call timer_start(g:sleep_time, { -> execute("call ARsync('up')", "")})
             else
                 autocmd BufWritePost,FileWritePost * ARsyncUp
             endif
-            " echo 'Setting up auto sync to remote'
+            echom "vim-arsync auto sync enabled."
+        else
+            echom "vim-arsync auto sync disabled."
         endif
-    endif
+    augroup END
+endfunction
+
+function! ReloadARSyncConf() abort
+    call AutoSync()
+    echom "vim-arsync configuration reloaded."
 endfunction
 
 if !executable('rsync')
@@ -149,10 +196,17 @@ endif
 command! ARsyncUp call ARsync('up')
 command! ARsyncUpDelete call ARsync('upDelete')
 command! ARsyncDown call ARsync('down')
+command! -nargs=1 ARsyncDownFile call ARsync('down', <f-args>)
 command! ARshowConf call ShowConf()
+command! ARsyncReload call ReloadARSyncConf()
 
 augroup vimarsync
     autocmd!
     autocmd VimEnter * call AutoSync()
     autocmd DirChanged * call AutoSync()
+augroup END
+
+augroup vimarsyncreload
+    autocmd!
+    autocmd BufWritePost .vim-arsync call ReloadARSyncConf()
 augroup END

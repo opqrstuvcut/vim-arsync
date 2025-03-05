@@ -8,6 +8,7 @@ vim plugin for asynchronous synchronisation of remote files and local files usin
 - project based configuration file
 - auto sync up on file save
 - works with ssh-keys (recommended) or plaintext password in config file
+- reload configure file automatically
 
 ## Installation
 ### Dependencies
@@ -20,7 +21,7 @@ vim plugin for asynchronous synchronisation of remote files and local files usin
 Place this in your .vimrc:
 
 ```vim
-Plug 'kenn7/vim-arsync'
+Plug 'opqrstuvcut/vim-arsync'
 
 " vim-arsync depedencies
 Plug 'prabirshrestha/async.vim'
@@ -35,7 +36,7 @@ Plug 'prabirshrestha/async.vim'
 ### Using Packer
 
 ```lua
-use {'kenn7/vim-arsync',
+use {'opqrstuvcut/vim-arsync',
     requires = {
         {'prabirshrestha/async.vim'}
     }
@@ -100,6 +101,8 @@ Setting ```rsync_flags``` to include `-ul`, for example, will use rsync's 'updat
 - ```:ARsyncUpDelete``` Syncs files up to the remote (upload local to remote)
   and delete remote files not existing on local (be careful with that)
 - ```:ARsyncDown``` Syncs files down from the remote (download remote to local)
+- ```:ARsyncDownFile filepath``` Syncs the specified file down from the remote
+
 
 Commands can be mapped to keyboard shortcuts enhance operations
 
